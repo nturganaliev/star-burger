@@ -1,7 +1,11 @@
+import json
+
+from django.db import transaction
 from django.http import JsonResponse
 from django.templatetags.static import static
 
-
+from .serializers import OrderDetailsSerializer
+from .models import Order
 from .models import Product
 
 
@@ -58,5 +62,36 @@ def product_list_api(request):
 
 
 def register_order(request):
-    # TODO это лишь заглушка
-    return JsonResponse({})
+    try:
+        data = json.loads(request.body.decode())
+
+        first_name = data['firstname']
+        last_name = data['lastname']
+        phone_number = data['phonenumber']
+        address = data['address']
+
+        order = Order(
+            first_name=first_name,
+            last_name=last_name,
+            phone_number=phone_number,
+            address=address
+        )
+        order.save()
+
+        order_details_serializer = OrderDetailsSerializer(
+            data=data['products'],
+            many=True
+        )
+        order_details_serializer.is_valid(raise_exception=True)
+        order_details_serializer.save(order=order)
+
+        return JsonResponse({'message': 'Order created successfully'})
+    except (
+        KeyError,
+        ValueError,
+        Order.DoesNotExist,
+        Product.DoesNotExist
+    ) as error:
+        return JsonResponse(error, status=400)
+
+
