@@ -3,6 +3,7 @@ import json
 from django.db import transaction
 from django.http import JsonResponse
 from django.templatetags.static import static
+from rest_framework.decorators import api_view
 
 from .serializers import OrderDetailsSerializer
 from .models import Order
@@ -61,37 +62,32 @@ def product_list_api(request):
     })
 
 
+@api_view(['POST'])
 def register_order(request):
-    try:
-        data = json.loads(request.body.decode())
+    data = json.loads(request.body.decode())
 
-        first_name = data['firstname']
-        last_name = data['lastname']
-        phone_number = data['phonenumber']
-        address = data['address']
+    first_name = data['firstname']
+    last_name = data['lastname']
+    phone_number = data['phonenumber']
+    address = data['address']
 
-        order = Order(
-            first_name=first_name,
-            last_name=last_name,
-            phone_number=phone_number,
-            address=address
-        )
-        order.save()
+    order = Order(
+        first_name=first_name,
+        last_name=last_name,
+        phone_number=phone_number,
+        address=address
+    )
+    order.save()
 
-        order_details_serializer = OrderDetailsSerializer(
-            data=data['products'],
-            many=True
-        )
-        order_details_serializer.is_valid(raise_exception=True)
-        order_details_serializer.save(order=order)
+    order_details_serializer = OrderDetailsSerializer(
+        data=data['products'],
+        many=True
+    )
+    order_details_serializer.is_valid(raise_exception=True)
+    order_details_serializer.save(order=order)
 
-        return JsonResponse({'message': 'Order created successfully'})
-    except (
-        KeyError,
-        ValueError,
-        Order.DoesNotExist,
-        Product.DoesNotExist
-    ) as error:
-        return JsonResponse(error, status=400)
-
-
+    return JsonResponse(
+        data,
+        safe=False,
+        json_dumps_params={'ensure_ascii': False, 'indend': 4}
+    )
