@@ -1,4 +1,5 @@
 import json
+import re
 
 from django.db import transaction
 from django.http import JsonResponse
@@ -68,8 +69,25 @@ def register_order(request):
     data = request.data
     print(data)
 
-    if 'products' not in data or not data['products']:
-        return Response("Empty 'products' list is not allowed")
+    if not isinstance(
+        data.get('products'), list) or not data.get('products'):
+            return Response("'products' must be non-empty list.")
+    if not isinstance(
+        data.get('firstname'), str) or not data.get('firstname'):
+            return Response("'firstname' must be non-empty string.")
+    if not isinstance(data.get('lastname'), str):
+        return Response("'lastname' must be string.")
+    if not re.match(r'\+79\d{9}$', data.get('phonenumber')):
+        return Response("'phonenumber' must be non-empty string"\
+            "and must startswith +79... length should be 10 digits.")
+    if not isinstance(data.get('address'), str) or not data.get('address'):
+        return Response("'address' must be non-empty string")
+
+    order_details_serializer = OrderDetailsSerializer(
+        data=data['products'],
+        many=True
+    )
+    order_details_serializer.is_valid(raise_exception=True)
 
     order = Order(
         first_name=data['firstname'],
@@ -79,13 +97,6 @@ def register_order(request):
     )
     order.save()
 
-    order_details_serializer = OrderDetailsSerializer(
-        data=data['products'],
-        many=True
-    )
-    order_details_serializer.is_valid(raise_exception=True)
     order_details_serializer.save(order=order)
 
-    return Response(request.data)
-
-
+    return Response(data)
