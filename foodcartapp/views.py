@@ -1,14 +1,16 @@
 import json
-import re
 
 from django.db import transaction
 from django.http import JsonResponse
 from django.templatetags.static import static
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.serializers import ValidationError
 
 from .serializers import OrderDetailsSerializer
+from .serializers import OrderSerializer
 from .models import Order
+from .models import OrderDetails
 from .models import Product
 
 
@@ -64,39 +66,30 @@ def product_list_api(request):
     })
 
 
-@api_view(['POST'])
+@api_view(['POST', ])
+@transaction.atomic
 def register_order(request):
-    data = request.data
-    print(data)
+    serializer = OrderSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    validated_data = serializer.validated_data
 
-    if not isinstance(
-        data.get('products'), list) or not data.get('products'):
-            return Response("'products' must be non-empty list.")
-    if not isinstance(
-        data.get('firstname'), str) or not data.get('firstname'):
-            return Response("'firstname' must be non-empty string.")
-    if not isinstance(data.get('lastname'), str):
-        return Response("'lastname' must be string.")
-    if not re.match(r'\+79\d{9}$', data.get('phonenumber')):
-        return Response("'phonenumber' must be non-empty string"\
-            "and must startswith +79... length should be 10 digits.")
-    if not isinstance(data.get('address'), str) or not data.get('address'):
-        return Response("'address' must be non-empty string")
-
-    order_details_serializer = OrderDetailsSerializer(
-        data=data['products'],
-        many=True
+    order = Order.objects.create(
+        lastname=validated_data['lastname'],
+        firstname=validated_data['firstname'],
+        phonenumber=validated_data['phonenumber'],
+        address=validated_data['address']
     )
-    order_details_serializer.is_valid(raise_exception=True)
 
-    order = Order(
-        first_name=data['firstname'],
-        last_name=data['lastname'],
-        phone_number=data['phonenumber'],
-        address=data['address']
-    )
-    order.save()
+    order_items_fields = validated_data.get('products')
+    order_items = [
+        OrderDetails(
+            order=order,
+            price=fields.get('product').price * fields.get('quantity'),
+            **fields,
+        ) for fields in order_items_fields
+    ]
 
-    order_details_serializer.save(order=order)
+    OrderDetails.objects.bulk_create(order_items)
+    serializer = OrderSerializer(order)
 
-    return Response(data)
+    return Response(serializer.data)
