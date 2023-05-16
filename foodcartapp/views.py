@@ -81,6 +81,7 @@ def register_order(request):
     )
 
     order_items_fields = validated_data.get('products')
+    print(order_items_fields)
     order_items = [
         OrderDetails(
             order=order,
